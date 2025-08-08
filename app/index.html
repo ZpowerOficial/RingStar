@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rising Star FC – Ultra-Lite Career Tycoon</title>
+    <!-- TailwindCSS para prototipagem rápida da UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js para o radar de atributos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Font Awesome para ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+          --font-main: 'Inter', 'IBM Plex Sans', sans-serif;
+          --clr-bg: #f8f9fa;
+          --clr-surface: #ffffff;
+          --clr-text: #212529;
+          --clr-accent: #0d6efd;
+          --clr-border: #dee2e6;
+          --clr-success: #198754;
+          --clr-danger: #dc3545;
+          --radius: 0.5rem;
+          --shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        [data-theme="dark"] {
+          --clr-bg: #121212;
+          --clr-surface: #1e1e1e;
+          --clr-text: #e0e0e0;
+          --clr-accent: #4dabf7;
+          --clr-border: #333333;
+          --clr-success: #20c997;
+          --clr-danger: #f06565;
+        }
+        body {
+            font-family: var(--font-main);
+            background-color: var(--clr-bg);
+            color: var(--clr-text);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .surface { background-color: var(--clr-surface); border: 1px solid var(--clr-border); border-radius: var(--radius); box-shadow: var(--shadow); }
+        .text-accent { color: var(--clr-accent); }
+        .bg-accent { background-color: var(--clr-accent); }
+        .border-color { border-color: var(--clr-border); }
+        .fade-in { animation: fadeIn 0.5s ease-in-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .modal-body-scroll { max-height: 85vh; overflow-y: auto; }
+        .modal { z-index: 1040; }
+        .loading-spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 40px; height: 40px; border-radius: 50%; border-left-color: var(--clr-accent); animation: spin 1s ease infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #notificationArea { position: fixed; bottom: 1rem; right: 1rem; z-index: 1050; display: flex; flex-direction: column; gap: 0.5rem; }
+        .notification { padding: 0.75rem 1.25rem; border-radius: var(--radius); color: white; min-width: 250px; box-shadow: var(--shadow); animation: fadeIn 0.3s forwards, fadeOut 0.3s 4.7s forwards; }
+        @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(10px); } }
+        .btn { padding: 0.5rem 1rem; border-radius: var(--radius); font-weight: 600; transition: all 0.2s; }
+        .btn-primary { background-color: var(--clr-accent); color: white; }
+        .btn-primary:hover { filter: brightness(1.1); }
+        .btn-secondary { background-color: var(--clr-surface); color: var(--clr-text); border: 1px solid var(--clr-border); }
+        .btn-secondary:hover { background-color: var(--clr-bg); }
+        .main-container {
+          display: grid;
+          grid-template-columns: 280px 1fr;
+          grid-template-rows: auto 1fr;
+          grid-template-areas:
+            "player-card main-content"
+            "timeline main-content";
+          gap: 1rem;
+          height: calc(100vh - 100px);
+        }
+        @media (max-width: 768px) {
+          .main-container {
+            grid-template-columns: 1fr;
+            grid-template-areas:
+              "player-card"
+              "main-content"
+              "timeline";
+            height: auto;
+          }
+        }
+    </style>
+</head>
+<body class="text-sm md:text-base">
+    <div id="notificationArea"></div>
+    <div id="globalLoadingIndicator" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden" style="z-index: 2000;">
+        <div class="loading-spinner"></div>
+    </div>
+    <div id="playerModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden p-4 modal">
+        <div class="surface p-6 w-full max-w-2xl modal-body-scroll">
+            <h3 class="text-xl font-bold mb-4">Criar Lenda: Rising Star</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block font-semibold mb-1">Nome</label>
+                    <input type="text" id="playerName" class="w-full p-2 border-color rounded" placeholder="Ex: R. Silva">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Apelido</label>
+                    <input type="text" id="playerSurname" class="w-full p-2 border-color rounded" placeholder="Ex: Fenômeno">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Nacionalidade</label>
+                    <select id="playerNationality" class="w-full p-2 border-color rounded"></select>
+                </div>
+                 <div>
+                    <label class="block font-semibold mb-1">Pé Preferido</label>
+                    <select id="playerFoot" class="w-full p-2 border-color rounded">
+                        <option value="Right">Direito</option>
+                        <option value="Left">Esquerdo</option>
+                        <option value="Both">Ambidestro</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block font-semibold mb-1">Arquétipo (Posição)</label>
+                    <select id="playerPosition" class="w-full p-2 border-color rounded"></select>
+                </div>
+            </div>
+            <button onclick="game.createPlayer()" class="w-full btn btn-primary mt-6">Forjar Destino</button>
+        </div>
+    </div>
+    <header class="surface p-4 mb-4 flex justify-between items-center">
+        <h1 class="text-xl md:text-2xl font-bold text-accent tracking-tighter">
+            <i class="fa-solid fa-star"></i> Rising Star FC
+        </h1>
+        <div class="flex items-center gap-2">
+            <button onclick="ui.toggleTheme()" class="btn btn-secondary !p-2 h-10 w-10"><i class="fa-solid fa-circle-half-stroke"></i></button>
+            <button id="resetBtn" onclick="game.reset()" class="btn btn-secondary hidden"><i class="fa-solid fa-arrow-rotate-left mr-2"></i>Recomeçar</button>
+        </div>
+    </header>
+    <main class="container mx-auto px-4">
+        <div id="welcomeScreen" class="text-center py-16 fade-in">
+            <i class="fa-solid fa-futbol text-7xl text-accent mb-4"></i>
+            <h2 class="text-4xl font-bold mb-4">Sua Jornada Começa Agora.</h2>
+            <p class="max-w-xl mx-auto mb-8 text-lg opacity-80">Crie seu jogador, evolua através das temporadas e grave seu nome na história do futebol. Cada decisão molda seu legado.</p>
+            <button onclick="ui.showPlayerModal()" class="btn btn-primary text-lg px-8 py-3 transform hover:scale-105">
+                <i class="fa-solid fa-user-plus mr-2"></i>Iniciar Carreira
+            </button>
+        </div>
+        <div id="appState" class="hidden">
+            <div class="main-container">
+                <div style="grid-area: player-card;" class="surface p-4 flex flex-col gap-4">
+                    <div class="flex items-center gap-4">
+                        <div id="player-flag" class="text-4xl"></div>
+                        <div>
+                            <h2 id="mainPlayerName" class="text-2xl font-bold"></h2>
+                            <p id="mainPlayerPosition" class="text-sm opacity-70"></p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <p><strong>Idade:</strong> <span id="mainPlayerAge"></span></p>
+                        <p><strong>Overall:</strong> <span id="mainPlayerOverall" class="font-bold text-accent"></span></p>
+                        <p><strong>Clube:</strong> <span id="mainPlayerClub"></span></p>
+                        <p><strong>Potencial:</strong> <span id="mainPlayerPotential"></span></p>
+                    </div>
+                    <div class="mt-auto">
+                         <button id="advanceSeasonBtn" onclick="game.advanceSeason()" class="w-full btn btn-primary">
+                            <i class="fa-solid fa-forward mr-2"></i>Avançar Temporada
+                        </button>
+                    </div>
+                </div>
+                <div style="grid-area: timeline;" class="surface p-4 flex flex-col">
+                    <h3 class="text-lg font-bold mb-2">Linha do Tempo</h3>
+                    <div id="eventFeed" class="flex-grow overflow-y-auto space-y-2 pr-2 text-sm"></div>
+                </div>
+                <div style="grid-area: main-content;" class="surface p-4 overflow-y-auto">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div>
+                            <h3 class="text-lg font-bold mb-2">Perfil de Atributos</h3>
+                            <canvas id="attributeRadar"></canvas>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold mb-2">Atributos Primários</h3>
+                            <div id="primaryAttributes" class="space-y-1 text-sm"></div>
+                        </div>
+                        <div class="lg:col-span-2">
+                             <h3 class="text-lg font-bold mb-2">Histórico da Carreira</h3>
+                             <div id="careerHistory" class="max-h-64 overflow-y-auto">
+                                 <table class="w-full text-left text-sm">
+                                     <thead class="sticky top-0 bg-opacity-80 backdrop-blur-sm" style="background-color: var(--clr-surface);">
+                                         <tr class="border-b-2 border-color">
+                                             <th class="p-2">Ano</th>
+                                             <th class="p-2">Clube</th>
+                                             <th class="p-2">J</th>
+                                             <th class="p-2">G</th>
+                                             <th class="p-2">A</th>
+                                             <th class="p-2">Rating</th>
+                                         </tr>
+                                     </thead>
+                                     <tbody id="careerHistoryBody">
+                                     </tbody>
+                                 </table>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer class="text-center py-4 mt-4">
+        <p class="text-xs opacity-50">© <span id="currentYear"></span> Rising Star FC. GDD-Powered. Proto v1.0.</p>
+    </footer>
+    <script type="module" src="main.js"></script>
+</body>
+</html>
